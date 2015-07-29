@@ -1,7 +1,8 @@
 ;(function(){
-	"use strict";
 	var attachContext = window;
 	
+	"use strict";
+
 	/**
 	 * A Promise is in one of these STATE: pending, fulfilled or rejected.
 	 */
@@ -10,9 +11,9 @@
 		fulfilled: "fulfilled",/* meaning that the operation completed successfully. */
 		rejected: "rejected"/* meaning that the operation failed. */
 	};
-	
+
 	var emptyFunction = function(){};
-	
+
 	/**
 	 * Used to output debug logs to the console.
 	 */
@@ -23,22 +24,25 @@
 		
 		eval("console.log('promise: '" + s + ")");
 	};
-	
+
 	/**
 	 * Executes promise chain adopting the previous promise's return value.
 	 */
-	var inherit = function(result, resolve, reject, resolvedData, rejectedData){
+	var resolvePromise = function(result, resolve, reject){
 		if(result instanceof Promise){
+			// debug("adopting promise", result);
+			
 			/* Adopt result's state */
 			result.then(function(resolvedData){
-				resolve(resolvedData);
+				resolvePromise(resolvedData, resolve, reject);
+				// resolve(resolvedData);
 			}, function(rejectedData){
 				reject(rejectedData);
 			});
 			return;
 		}
 		
-		if(typeof result !== "object" && typeof result !== "function"){
+		if(null == result || undefined == result || typeof result !== "object" && typeof result !== "function"){
 			resolve(result);
 			return;
 		}
@@ -52,31 +56,33 @@
 		}
 		
 		if(typeof then !== "function"){
-			reject(e);
+			resolve(result);
 			return;
 		}
 		
-		var resolved = false, rejected = false;
+		var finished = false;
 		try{
 			then.call(result, function(data){/* resolvePromise */
-				if(resolved || rejected)
+				if(finished)
 					return;
 				
-				resolve(data);
+				resolvePromise(data, resolve, reject);
+				finished = true;
 			}, function(data){/* rejectPromise */
-				if(resolved || rejected)
+				if(finished)
 					return;
 				
 				reject(data);
+				finished = true;
 			});
 		}catch(e){
-			if(resolved || rejected)
+			if(finished)
 				return;
 			
 			reject(e);
 		}
 	};
-	
+
 	/**
 	 * @constructor
 	 * Promise prototype.
@@ -93,7 +99,6 @@
 		Object.defineProperty(this, "resolve", {value: function(data){
 			if(state !== STATE.pending)
 				return;
-				// throw new Error("Promise was " + (state === STATE.fulfilled? "resolve": "reject") + "ed already!");
 			
 			/* refresh state */
 			state = STATE.fulfilled;
@@ -101,7 +106,7 @@
 			
 			/* execute callback */
 			resolveListeners.forEach(function(listener){
-				listener(data);
+				setTimeout(function(){listener(data);}, 0);
 			});
 		}, enumerable: false, writable: false, configurable: false});
 		
@@ -112,7 +117,6 @@
 		Object.defineProperty(this, "reject", {value: function(data){
 			if(state !== STATE.pending)
 				return;
-				// throw new Error("Promise was " + (state === STATE.fulfilled? "resolve": "reject") + "ed already!");
 
 			/* refresh state */
 			state = STATE.rejected;
@@ -120,7 +124,7 @@
 			
 			/* execute callback */
 			rejectListeners.forEach(function(listener){
-				listener(data);
+				setTimeout(function(){listener(data);}, 0);
 			});
 		}, enumerable: false, writable: false, configurable: false});
 
@@ -138,7 +142,10 @@
 					var newOnFulfilled = function(resolvedData){
 						try{
 							var rst = onFulfilled(resolvedData);
-							inherit(rst, resolve, reject, resolvedData, rejectedData);
+							if(rst === promise)
+								throw new TypeError("Resolved data can not be the same with returned Promise instance of 'then' method");
+							
+							resolvePromise(rst, resolve, reject);
 						}catch(e){
 							reject(e);
 						}
@@ -162,7 +169,10 @@
 					var newOnRejected = function(rejectedData){
 						try{
 							var rst = onRejected(rejectedData);
-							inherit(rst, resolve, reject, resolvedData, rejectedData);
+							if(rst === promise)
+								throw new TypeError("Rejected data can not be the same with returned Promise instance of 'then' method");
+							
+							resolvePromise(rst, resolve, reject);
 						}catch(e){
 							reject(e);
 						}
@@ -190,7 +200,7 @@
 			return this.then(undefined, onRejected);
 		}, enumerable: false, writable: false, configurable: false});
 	};
-	
+
 	/**
 	 * @constructor
 	 * @param executor {Function} Promise executor which will resolve or reject the promise.
@@ -219,9 +229,11 @@
 		}, enumerable: false, writable: false, configurable: false});
 		
 		/* Executes the executor */
-		executor(promisePrototype.resolve, promisePrototype.reject);
+		setTimeout(function(){
+			executor(promisePrototype.resolve, promisePrototype.reject);
+		}, 0);
 	};
-	
+
 	/**
 	 * Returns a defer object used to resove or reject the promise manually.
 	 */
@@ -248,7 +260,7 @@
 		
 		return obj;
 	}, enumerable: false, writable: false, configurable: false});
-	
+
 	/**
 	 * Returns a Promise object that is resolved with the given value. 
 	 * If the value is a thenable (i.e. has a then method), the returned promise will "follow" that thenable, adopting its eventual state;
@@ -257,12 +269,12 @@
 	 */
 	Object.defineProperty(Promise, "resolve", {value: function(data){
 		var promise = new Promise(function(resolve, reject){
-			inherit(data, resolve, reject, data, data);
+			resolvePromise(data, resolve, reject);
 		});
 		
 		return promise;
 	}, enumerable: false, writable: false, configurable: false});
-	
+
 	/**
 	 * Returns a Promise object that is rejected with the given reason.
 	 */
@@ -273,20 +285,20 @@
 		
 		return promise;
 	}, enumerable: false, writable: false, configurable: false});
-	
+
 	/**
 	 * Returns a promise that resolves or rejects as soon as one of the promises in the iterable resolves or rejects, with the value or reason from that promise.
 	 */
 	Object.defineProperty(Promise, "race", {value: function(iterable){
 		var promise = new Promise(function(resolve, reject){
 			var isFinished = false;
-			var resolvePromise = function(data){
+			var _resolvePromise = function(data){
 				if(isFinished)
 					return;
 				
 				resolve(data);
 				isFinished = true;
-			}, rejectPromise = function(data){
+			}, _rejectPromise = function(data){
 				if(isFinished)
 					return;
 				
@@ -297,13 +309,13 @@
 			iterable.forEach(function(itm){
 				itm = Promise.resolve(itm);
 				
-				itm.then(resolvePromise, rejectPromise);
+				itm.then(_resolvePromise, _rejectPromise);
 			});
 		});
 		
 		return promise;
 	}, enumerable: false, writable: false, configurable: false});
-	
+
 	/**
 	 * Returns a promise that resolves when all of the promises in the iterable argument have resolved.
 	 */
