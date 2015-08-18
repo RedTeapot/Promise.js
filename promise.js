@@ -321,19 +321,19 @@
 	 */
 	Object.defineProperty(Promise, "all", {value: function(iterable){
 		var promise = new Promise(function(resolve, reject){
-			var finishedPromises = [], resolvedDatas = [];
+			var finishedPromises = new Array(iterable.length), resolvedDatas = new Array(iterable.length);
 			var isAllFinished = function(){
 				return iterable.every(function(itm){
 					return finishedPromises.indexOf(itm) != -1;
 				});
 			};
 			
-			iterable.forEach(function(itm){
+			iterable.forEach(function(itm, i){
 				var tarItm = Promise.resolve(itm);
 				tarItm.then((function(itm){
 					return function(data){
-						finishedPromises.push(itm);
-						resolvedDatas.push(data);
+						finishedPromises[i] = itm;
+						resolvedDatas[i] = data;
 						
 						if(isAllFinished())
 							resolve(resolvedDatas);
