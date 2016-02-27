@@ -1,7 +1,30 @@
 ;(function(){
 	var attachContext = window;
 	
-	"use strict";
+	/* 兼容处理 */
+	;(function(){
+		var rIE = /\bMSIE\s+((\d+)(\.\d+)*)\b/i;
+		var ieMajorVersion = rIE.exec(navigator.userAgent);
+		if(null != ieMajorVersion){
+			ieMajorVersion = parseInt(ieMajorVersion[2]);
+			if(ieMajorVersion <= 8){
+				/**
+				 * 简化的defineProperty方法定义，用于兼容IE8
+				 */
+				Object.defineProperty = function(obj, name, opt){
+					obj[name] = opt.value;
+				};
+				
+				/**
+				 * 为数组添加forEach方法
+				 */
+				Array.prototype.forEach = function(f){
+					for(var i = 0; i < this.length; i++)
+						f(this[i], i);
+				};
+			}
+		}
+	})();
 
 	/**
 	 * A Promise is in one of these STATE: pending, fulfilled or rejected.
@@ -225,7 +248,7 @@
 		 * Delegate method: 'catch'.
 		 */
 		Object.defineProperty(this, "catch", {value: function(){
-			return promisePrototype.catch.apply(promisePrototype, arguments);
+			return promisePrototype["catch"].apply(promisePrototype, arguments);
 		}, enumerable: false, writable: false, configurable: false});
 		
 		/* Executes the executor */
