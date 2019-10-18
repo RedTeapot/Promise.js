@@ -3,4 +3,9 @@ var promisesAplusTests = require("C:/Users/WMJ/AppData/Roaming/npm/node_modules/
 
 promisesAplusTests(adapter, function(err){
     // All done; output is in the console. Or check `err` for number of failures.
+	if(err){
+		console.error("!!!!!!!!!!!!");
+		console.error(err);
+		console.error("!!!!!!!!!!!!");
+	}
 });
