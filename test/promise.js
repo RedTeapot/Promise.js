@@ -279,6 +279,11 @@
 			rejectedReason = reason;
 			
 			/* execute callback */
+			if(rejectListeners.length == 0){
+				console.error("Uncaught (in promise)", reason);
+				return;
+			}
+			
 			setTimeout(function(){
 				for(var i = 0; i < rejectListeners.length; i++){
 					var listener = rejectListeners[i];
@@ -399,17 +404,14 @@
 			};
 			
 			iterable.forEach(function(itm, i){
-				var tarItm = Promise.resolve(itm);
-				tarItm.then((function(itm){
-					return function(data){
-						finishedPromises[i] = itm;
-						resolvedDatas[i] = data;
-						
-						if(isAllFinished())
-							resolve(resolvedDatas);
-					};
-				})(itm), function(data){
-					reject(data);
+				itm.then(function(data){
+					finishedPromises[i] = itm;
+					resolvedDatas[i] = data;
+					
+					if(isAllFinished())
+						resolve(resolvedDatas);
+				}, function(reason){
+					reject(reason);
 				});
 			});
 		});
